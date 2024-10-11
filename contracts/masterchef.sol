@@ -226,6 +226,11 @@ contract MasterChef is Ownable, ReentrancyGuard {
         return tvls;
     }
 
+    function getUserTotalDeposit(uint256 _pid, address _user) external view returns (uint256) {
+        UserInfo storage user = userInfo[_pid][_user];
+        return totalStaked(user);
+    }
+
     // Add a new harvest function to allow users to claim rewards without withdrawing staked tokens
     function harvest(uint256 _pid) external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];

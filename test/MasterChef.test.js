@@ -224,4 +224,35 @@ describe("MasterChef", function () {
     const updatedTvl = await masterChef.getPoolTVL(0);
     expect(updatedTvl).to.equal(depositAmount - withdrawAmount);
   });
+
+  it("Should correctly report the total deposit for a user", async function () {
+    const depositAmount1 = ethers.parseEther("50");
+    const depositAmount2 = ethers.parseEther("30");
+    
+    // Transfer AIDS tokens to user1 and approve the MasterChef contract
+    await aidsToken.transfer(user1.address, depositAmount1 + depositAmount2);
+    await aidsToken.connect(user1).approve(masterChef.target, depositAmount1 + depositAmount2);
+  
+    // User1 makes the first deposit
+    await masterChef.connect(user1).deposit(0, depositAmount1);
+    
+    // Check the total deposit after the first deposit
+    let totalDeposit = await masterChef.getUserTotalDeposit(0, user1.address);
+    expect(totalDeposit).to.equal(depositAmount1);
+  
+    // User1 makes a second deposit
+    await masterChef.connect(user1).deposit(0, depositAmount2);
+  
+    // Check the total deposit after the second deposit
+    totalDeposit = await masterChef.getUserTotalDeposit(0, user1.address);
+    expect(totalDeposit).to.equal(depositAmount1 + depositAmount2);
+  
+    // Perform a partial withdrawal
+    const withdrawAmount = ethers.parseEther("20");
+    await masterChef.connect(user1).withdraw(0, withdrawAmount);
+  
+    // Check the total deposit after the withdrawal
+    totalDeposit = await masterChef.getUserTotalDeposit(0, user1.address);
+    expect(totalDeposit).to.equal(depositAmount1 + depositAmount2 - withdrawAmount);
+  });
 });
