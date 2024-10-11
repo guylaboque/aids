@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract MasterChefA is Ownable, ReentrancyGuard {
+contract MasterChef is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     struct DepositInfo {
@@ -25,6 +25,7 @@ contract MasterChefA is Ownable, ReentrancyGuard {
         uint256 lastRewardBlock;    // Last block number where rewards were distributed
         uint256 accRewardPerShare;  // Accumulated rewards per share
         uint256 lockupPeriod;       // Timelock for withdrawals (in seconds)
+        uint256 totalStaked;
     }
 
     IERC20 public rewardToken;       // Reward token for distribution
@@ -55,7 +56,8 @@ contract MasterChefA is Ownable, ReentrancyGuard {
             allocPoint: _allocPoint,
             lastRewardBlock: lastRewardBlock,
             accRewardPerShare: 0,
-            lockupPeriod: _lockupPeriod
+            lockupPeriod: _lockupPeriod,
+            totalStaked: 0  // Initialize totalStaked to 0 for new pools
         }));
     }
 
@@ -98,6 +100,7 @@ contract MasterChefA is Ownable, ReentrancyGuard {
                 amount: _amount,
                 withdrawTime: block.timestamp + pool.lockupPeriod
             }));
+            pool.totalStaked += _amount;
         }
 
         user.rewardDebt = (totalStaked(user) * pool.accRewardPerShare) / 1e12;
@@ -128,6 +131,7 @@ contract MasterChefA is Ownable, ReentrancyGuard {
         // Finally, remove from deposits and transfer staking tokens back to user
         removeWithdrawnAmount(user, _amount);
         pool.stakingToken.safeTransfer(msg.sender, _amount);
+        pool.totalStaked -= _amount;  // Update total staked amount
 
         emit Withdraw(msg.sender, _pid, _amount);
     }
@@ -206,6 +210,20 @@ contract MasterChefA is Ownable, ReentrancyGuard {
 
         pool.accRewardPerShare += (reward * 1e12) / stakedSupply;
         pool.lastRewardBlock = block.number;
+    }
+
+    // Add a function to get TVL for a specific pool
+    function getPoolTVL(uint256 _pid) public view returns (uint256) {
+        return poolInfo[_pid].totalStaked;
+    }
+
+    // Add a function to get TVL for all pools
+    function getAllPoolsTVL() public view returns (uint256[] memory) {
+        uint256[] memory tvls = new uint256[](poolInfo.length);
+        for (uint256 i = 0; i < poolInfo.length; i++) {
+            tvls[i] = poolInfo[i].totalStaked;
+        }
+        return tvls;
     }
 
     // Add a new harvest function to allow users to claim rewards without withdrawing staked tokens

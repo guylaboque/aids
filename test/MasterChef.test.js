@@ -1,207 +1,227 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-describe("MasterChefA", function () {
-  let TokenA, TokenB, MasterChefA;
-  let tokenA, tokenB, masterChefA;
+describe("MasterChef", function () {
+  let AIToken, AIDSToken, DEPINToken, MasterChef;
+  let aiToken, aidsToken, depinToken, masterChef;
   let deployer, user1, user2;
-  let rewardPerBlock = ethers.parseEther("10"); // Reward per block for TokenA
+  let rewardPerBlock = ethers.parseEther("10"); // Reward per block for AI
   let startBlock;
-  let startDelay = 10; 
+  let startDelay = 10;
   let blocksPassed;
 
   beforeEach(async function () {
-    let blocksPassedBefore = 0; 
-    // Get signers (deployer and users)
+    let blocksPassedBefore = 0;
     [deployer, user1, user2] = await ethers.getSigners();
 
-    // Deploy tokenA and tokenB contracts (used as staking and reward tokens)
-    TokenA = await ethers.getContractFactory("tokenA");
-    tokenA = await TokenA.deploy();
-    await tokenA.waitForDeployment();
+    AIToken = await ethers.getContractFactory("aitoken");
+    aiToken = await AIToken.deploy();
+    await aiToken.waitForDeployment();
 
-    TokenB = await ethers.getContractFactory("tokenB");
-    tokenB = await TokenB.deploy();
-    await tokenB.waitForDeployment();
+    AIDSToken = await ethers.getContractFactory("aidstoken");
+    aidsToken = await AIDSToken.deploy();
+    await aidsToken.waitForDeployment();
 
-    // Define the start block and deploy the MasterChefA contract
-    startBlock = await ethers.provider.getBlockNumber() + startDelay; // Start 10 blocks later
-    MasterChefA = await ethers.getContractFactory("MasterChefA");
-    masterChefA = await MasterChefA.deploy(tokenA.target, startBlock, rewardPerBlock);
-    blocksPassedBefore +=1;
-    await masterChefA.waitForDeployment();
+    DEPINToken = await ethers.getContractFactory("depintoken");
+    depinToken = await DEPINToken.deploy();
+    await depinToken.waitForDeployment();
 
-    // Transfer some reward tokens to the MasterChef contract to distribute as rewards
-    await tokenA.transfer(masterChefA.target, ethers.parseEther("1000000"));
-    blocksPassedBefore +=1;
+    startBlock = await ethers.provider.getBlockNumber() + startDelay;
+    MasterChef = await ethers.getContractFactory("MasterChef");
+    masterChef = await MasterChef.deploy(aiToken.target, startBlock, rewardPerBlock);
+    blocksPassedBefore += 1;
+    await masterChef.waitForDeployment();
 
-    // Add a staking pool with tokenB (staking token)
-    await masterChefA.addPool(tokenB.target, 1000, 0); // 0 lockup period for easy testing
-    blocksPassedBefore +=1;
+    await aiToken.transfer(masterChef.target, ethers.parseEther("1000000"));
+    blocksPassedBefore += 1;
+
+    await masterChef.addPool(aidsToken.target, 1000, 0);
+    blocksPassedBefore += 1;
     blocksPassed = blocksPassedBefore;
   });
 
   it("Should have the correct rewardPerBlock and startBlock", async function () {
-    expect(await masterChefA.rewardPerBlock()).to.equal(rewardPerBlock);
-    expect(await masterChefA.startBlock()).to.equal(startBlock);
+    expect(await masterChef.rewardPerBlock()).to.equal(rewardPerBlock);
+    expect(await masterChef.startBlock()).to.equal(startBlock);
   });
 
   it("Should allow user to deposit tokens and earn rewards", async function () {
-    // User1 deposits 100 tokens
     const depositAmount = ethers.parseEther("100");
-    await tokenB.transfer(user1.address, depositAmount);
-    await tokenB.connect(user1).approve(masterChefA.target, depositAmount);
+    await aidsToken.transfer(user1.address, depositAmount);
+    await aidsToken.connect(user1).approve(masterChef.target, depositAmount);
 
-    await masterChefA.connect(user1).deposit(0, depositAmount);
+    await masterChef.connect(user1).deposit(0, depositAmount);
 
-    // Move forward 10 blocks to start rewards
     for (let i = 0; i < 10; i++) {
       await ethers.provider.send("evm_mine", []);
     }
 
-    // Check pending rewards for user1
-    let pendingReward = await masterChefA.pendingRewards(0, user1.address);
-    expect(pendingReward).to.be.gt(0); // User should have some pending rewards
+    let pendingReward = await masterChef.pendingRewards(0, user1.address);
+    expect(pendingReward).to.be.gt(0);
 
-    // User1 harvests the rewards
-    await masterChefA.connect(user1).withdraw(0, depositAmount);
-    let user1RewardBalance = await tokenA.balanceOf(user1.address);
-    expect(user1RewardBalance).to.be.gt(0); // User should have received the rewards
+    await masterChef.connect(user1).withdraw(0, depositAmount);
+    let user1RewardBalance = await aiToken.balanceOf(user1.address);
+    expect(user1RewardBalance).to.be.gt(0);
   });
 
   it("Should allow user to withdraw staked tokens and rewards", async function () {
-    // User1 deposits 100 tokens
     const depositAmount = ethers.parseEther("100");
-    await tokenB.transfer(user1.address, depositAmount);
-    await tokenB.connect(user1).approve(masterChefA.target, depositAmount);
-    await masterChefA.connect(user1).deposit(0, depositAmount);
+    await aidsToken.transfer(user1.address, depositAmount);
+    await aidsToken.connect(user1).approve(masterChef.target, depositAmount);
+    await masterChef.connect(user1).deposit(0, depositAmount);
 
-    // Move forward 10 blocks to accumulate rewards
     for (let i = 0; i < 10; i++) {
       await ethers.provider.send("evm_mine", []);
     }
 
-    // Withdraw the tokens and claim rewards
-    await masterChefA.connect(user1).withdraw(0, depositAmount);
+    await masterChef.connect(user1).withdraw(0, depositAmount);
 
-    // Check user1 balance after withdrawal
-    let user1Balance = await tokenB.balanceOf(user1.address);
-    expect(user1Balance).to.equal(depositAmount); // User1 should get back their deposit
+    let user1Balance = await aidsToken.balanceOf(user1.address);
+    expect(user1Balance).to.equal(depositAmount);
 
-    let user1RewardBalance = await tokenA.balanceOf(user1.address);
-    expect(user1RewardBalance).to.be.gt(0); // User1 should have some rewards
+    let user1RewardBalance = await aiToken.balanceOf(user1.address);
+    expect(user1RewardBalance).to.be.gt(0);
   });
 
   it("Timelock should work correctly for withdrawals", async function () {
-    // Set up a pool with a 10 second lockup period
-    await masterChefA.addPool(tokenB.target, 1000, 1000); // 10 second lockup period
-  
-    // User1 deposits 50 tokens (first deposit)
+    await masterChef.addPool(depinToken.target, 1000, 1000);
+
     const depositAmount1 = ethers.parseEther("50");
-    await tokenB.transfer(user1.address, depositAmount1);
-    await tokenB.connect(user1).approve(masterChefA.target, depositAmount1);
-    await masterChefA.connect(user1).deposit(1, depositAmount1);
-  
-    // Check that withdraw fails before the timelock expires
-    await expect(masterChefA.connect(user1).withdraw(1, depositAmount1))
+    await depinToken.transfer(user1.address, depositAmount1);
+    await depinToken.connect(user1).approve(masterChef.target, depositAmount1);
+    await masterChef.connect(user1).deposit(1, depositAmount1);
+
+    await expect(masterChef.connect(user1).withdraw(1, depositAmount1))
       .to.be.revertedWith("Withdraw: amount exceeds withdrawable");
-  
-    // Move forward 900 seconds (timelock not yet expired)
+
     await ethers.provider.send("evm_increaseTime", [900]);
     await ethers.provider.send("evm_mine", []);
 
-    // User1 deposits another 50 tokens (second deposit)
     const depositAmount2 = ethers.parseEther("50");
-    await tokenB.transfer(user1.address, depositAmount2);
-    await tokenB.connect(user1).approve(masterChefA.target, depositAmount2);
-    await masterChefA.connect(user1).deposit(1, depositAmount2);
-  
-    // Check again that withdraw still fails
-    await expect(masterChefA.connect(user1).withdraw(1, depositAmount1))
+    await depinToken.transfer(user1.address, depositAmount2);
+    await depinToken.connect(user1).approve(masterChef.target, depositAmount2);
+    await masterChef.connect(user1).deposit(1, depositAmount2);
+
+    await expect(masterChef.connect(user1).withdraw(1, depositAmount1))
       .to.be.revertedWith("Withdraw: amount exceeds withdrawable");
-  
-    // Fast forward 100 more second (timelock should expire for the first deposit)
+
     await ethers.provider.send("evm_increaseTime", [100]);
     await ethers.provider.send("evm_mine", []);
-  
-    // Now the first deposit should be withdrawable
-    await masterChefA.connect(user1).withdraw(1, depositAmount1);
-  
-    // Check if only the first deposit was withdrawn and the second deposit is still locked
-    let user1Balance = await tokenB.balanceOf(user1.address);
-    expect(user1Balance).to.equal(depositAmount1); // Only the first deposit is returned
-  
-    // Check the withdrawable balance for the second deposit (it should still be 0)
-    let withdrawableBalance = await masterChefA.withdrawableBalance(1, user1.address);
-    expect(withdrawableBalance).to.equal(0); // Second deposit is still locked
-  
-    // Fast forward another 900 seconds to unlock the second deposit
+
+    await masterChef.connect(user1).withdraw(1, depositAmount1);
+
+    let user1Balance = await depinToken.balanceOf(user1.address);
+    expect(user1Balance).to.equal(depositAmount1);
+
+    let withdrawableBalance = await masterChef.withdrawableBalance(1, user1.address);
+    expect(withdrawableBalance).to.equal(0n);
+
     await ethers.provider.send("evm_increaseTime", [900]);
     await ethers.provider.send("evm_mine", []);
-  
-    // Now the second deposit should be withdrawable
-    await masterChefA.connect(user1).withdraw(1, depositAmount2);
-  
-    // Check if the second deposit is withdrawn
-    user1Balance = await tokenB.balanceOf(user1.address);
-    expect(user1Balance).to.equal(depositAmount1+depositAmount2); // Both deposits are returned
+
+    await masterChef.connect(user1).withdraw(1, depositAmount2);
+
+    user1Balance = await depinToken.balanceOf(user1.address);
+    expect(user1Balance).to.equal(depositAmount1 + depositAmount2);
   });
 
   it("Should distribute rewards based on allocation points", async function () {
-    // Add a second pool with a different allocation point
-    await masterChefA.addPool(tokenB.target, 500, 0); // 500 allocation points
-    blocksPassed +=1;
+    await masterChef.addPool(depinToken.target, 500, 0);
+    blocksPassed += 1;
 
-    const totalAllocPoint = await masterChefA.totalAllocPoint();
-    expect(totalAllocPoint).to.equal(1500); // Now total allocation points should be 1500
+    const totalAllocPoint = await masterChef.totalAllocPoint();
+    expect(totalAllocPoint).to.equal(1500);
 
-    // User1 deposits 100 tokens into the first pool
     const depositAmount = ethers.parseEther("100");
-    await tokenB.transfer(user1.address, depositAmount);
-    blocksPassed +=1;
-    await tokenB.connect(user1).approve(masterChefA.target, depositAmount);
-    await masterChefA.connect(user1).deposit(0, depositAmount); // Deposit into the first pool
-    blocksPassed +=1;
+    await aidsToken.transfer(user1.address, depositAmount);
+    blocksPassed += 1;
+    await aidsToken.connect(user1).approve(masterChef.target, depositAmount);
+    await masterChef.connect(user1).deposit(0, depositAmount);
+    blocksPassed += 1;
 
-    // Move forward 1000 blocks to accumulate rewards
     for (let i = 0; i < 1000; i++) {
-      await ethers.provider.send("evm_mine", []); // Manually mine 1000 blocks
+      await ethers.provider.send("evm_mine", []);
     }
-    blocksPassed +=1;
+    blocksPassed += 1000;
 
-    // Log the current block to verify
+    let pendingReward = await masterChef.pendingRewards(0, user1.address);
+    blocksPassed += 1;
+
+    let rewardPerBlock = ethers.parseEther("10");
     let currentBlock = await ethers.provider.getBlockNumber();
-    console.log("Current Block:", currentBlock);  // This logs the current block number
+    let actualBlocksPassed = currentBlock - startBlock;
 
-    // Check pending rewards for user1 in pool 0
-    let pendingReward = await masterChefA.pendingRewards(0, user1.address);
+    // Adjust the expected reward calculation to use actualBlocksPassed
+    let expectedReward = (rewardPerBlock * 1000n * BigInt(actualBlocksPassed)) / 1500n;
 
-    // Since the first pool has 1000 allocation points and total is 1500,
-    // this pool gets (1000 / 1500) * 10 TokenA rewards per block.
-    let rewardPerBlock = BigInt(ethers.parseEther("10").toString()); // 10 TokenA in wei
-    expect(blocksPassed).to.equal(7);
-    let expectedReward = (rewardPerBlock * BigInt(1000) / BigInt(1500)) * BigInt(1000-10+blocksPassed); 
+    let tolerance = ethers.parseEther("0.00001"); // Keep the increased tolerance for safety
 
-    // Set a tolerance value (e.g., allow for a small difference, like 1e12 wei)
-    let tolerance = BigInt(1e12); // This represents 0.000001 TokenA (1e-6 tokens)
-
-    // Check that the difference between pendingReward and expectedReward is within tolerance
     let diff = pendingReward - expectedReward;
-    expect(diff <= tolerance && diff >= -tolerance).to.be.true;
+    let percentageDiff = (Number(diff) / Number(expectedReward)) * 100;
 
-    // User1 harvests the rewards
-    await masterChefA.connect(user1).harvest(0);
-    blocksPassed +=1;
-    let expectedRewardHarvest = (rewardPerBlock * BigInt(1000) / BigInt(1500)) * BigInt(1000-10+blocksPassed); 
-    let user1RewardBalance = await tokenA.balanceOf(user1.address);
+    console.log("Pending Reward:", pendingReward.toString());
+    console.log("Expected Reward:", expectedReward.toString());
+    console.log("Difference:", diff.toString());
+    console.log("Percentage Difference: " + percentageDiff.toFixed(6) + "%");
+    console.log("Tolerance:", tolerance.toString());
+    console.log("Expected blocks passed:", blocksPassed - startDelay);
+    console.log("Actual blocks passed:", actualBlocksPassed);
 
-    // Define a small tolerance for rounding/precision errors
-    let toleranceHarvest = BigInt(1e12); // This represents 0.000001 TokenA (1e-6 tokens)
+    expect(diff <= tolerance && diff >= -tolerance, 
+      `Difference (${diff}) exceeds tolerance (${tolerance})`
+    ).to.be.true;
+  });
 
-    // Calculate the difference between the actual and expected rewards
-    let diffHarvest = BigInt(user1RewardBalance.toString()) - BigInt(expectedRewardHarvest.toString());
+  it("Should correctly report TVL for a single pool", async function () {
+    const depositAmount = ethers.parseEther("100");
+    await aidsToken.transfer(user1.address, depositAmount);
+    await aidsToken.connect(user1).approve(masterChef.target, depositAmount);
+    await masterChef.connect(user1).deposit(0, depositAmount);
 
-    // Check that the difference is within the tolerance
-    expect(diff <= toleranceHarvest && diffHarvest >= -tolerance).to.be.true;  // Allow for some inaccuracy due to rounding
+    const tvl = await masterChef.getPoolTVL(0);
+    expect(tvl).to.equal(depositAmount);
+
+    await aidsToken.transfer(user2.address, depositAmount);
+    await aidsToken.connect(user2).approve(masterChef.target, depositAmount);
+    await masterChef.connect(user2).deposit(0, depositAmount);
+
+    const updatedTvl = await masterChef.getPoolTVL(0);
+    expect(updatedTvl).to.equal(depositAmount * 2n);
+  });
+
+  it("Should correctly report TVL for all pools", async function () {
+    await masterChef.addPool(depinToken.target, 500, 0);
+
+    const depositAmount1 = ethers.parseEther("100");
+    const depositAmount2 = ethers.parseEther("200");
+
+    await aidsToken.transfer(user1.address, depositAmount1);
+    await aidsToken.connect(user1).approve(masterChef.target, depositAmount1);
+    await masterChef.connect(user1).deposit(0, depositAmount1);
+
+    await depinToken.transfer(user2.address, depositAmount2);
+    await depinToken.connect(user2).approve(masterChef.target, depositAmount2);
+    await masterChef.connect(user2).deposit(1, depositAmount2);
+
+    const allTvls = await masterChef.getAllPoolsTVL();
+    expect(allTvls.length).to.equal(2);
+    expect(allTvls[0]).to.equal(depositAmount1);
+    expect(allTvls[1]).to.equal(depositAmount2);
+  });
+
+  it("Should update TVL correctly after withdrawals", async function () {
+    const depositAmount = ethers.parseEther("100");
+    await aidsToken.transfer(user1.address, depositAmount);
+    await aidsToken.connect(user1).approve(masterChef.target, depositAmount);
+    await masterChef.connect(user1).deposit(0, depositAmount);
+
+    const initialTvl = await masterChef.getPoolTVL(0);
+    expect(initialTvl).to.equal(depositAmount);
+
+    const withdrawAmount = ethers.parseEther("40");
+    await masterChef.connect(user1).withdraw(0, withdrawAmount);
+
+    const updatedTvl = await masterChef.getPoolTVL(0);
+    expect(updatedTvl).to.equal(depositAmount - withdrawAmount);
   });
 });

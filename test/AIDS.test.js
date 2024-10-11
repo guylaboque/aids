@@ -1,39 +1,39 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-describe("TokenA", function () {
-  let TokenA;
-  let tokenA;
+describe("AIDSToken", function () {
+  let AIDSToken;
+  let aidsToken;
   let deployer;
   let initialSupply;
 
   beforeEach(async function () {
-    // Initialize the initial supply inside the beforeEach block
+    // Initialize the initial supply for AIDSToken (1 billion tokens with 18 decimals)
     initialSupply = ethers.parseEther("1000000000"); // 1 billion tokens with 18 decimals
 
     // Get the ContractFactory and Signers here
     [deployer] = await ethers.getSigners();
-    TokenA = await ethers.getContractFactory("tokenA");
+    AIDSToken = await ethers.getContractFactory("aidstoken");
 
-    // Deploy tokenA contract
-    tokenA = await TokenA.deploy();
-    await tokenA.waitForDeployment();
+    // Deploy aidsToken contract
+    aidsToken = await AIDSToken.deploy();
+    await aidsToken.waitForDeployment();
   });
 
   // Test for name and symbol
   it("Should have the correct name and symbol", async function () {
-    expect(await tokenA.name()).to.equal("tokenA");
-    expect(await tokenA.symbol()).to.equal("TKA");
+    expect(await aidsToken.name()).to.equal("aidepinsupertoken");
+    expect(await aidsToken.symbol()).to.equal("AIDS");
   });
 
   // Test initial supply and assignment to deployer
   it("Should assign the total supply to the deployer", async function () {
-    const deployerBalance = await tokenA.balanceOf(deployer.address);
+    const deployerBalance = await aidsToken.balanceOf(deployer.address);
     expect(deployerBalance).to.equal(initialSupply);
   });
 
   // Test ownership (Ownable)
   it("Should set the deployer as the owner", async function () {
-    expect(await tokenA.owner()).to.equal(deployer.address);
+    expect(await aidsToken.owner()).to.equal(deployer.address);
   });
 });
